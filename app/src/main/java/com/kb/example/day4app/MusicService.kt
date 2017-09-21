@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.ContentUris
 import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Binder
@@ -23,13 +25,13 @@ const val PENDING_INTENT_PLAY = 88
 const val PENDING_INTENT_STOP = 99
 const val ACTION_PLAY = "com.kb.example.day4app.play_music"
 const val ACTION_STOP = "com.kb.example.day4app.stop_music"
+const val LOG_TAG_SERVICE = "MusicService"
 
-class MusicService : Service(), MyMediaPlayerListener {
+class MusicService : Service(), MyMediaPlayerListener, MusicPlayer {
 
     private val binder = MusicServiceBinder()
     private val mediaUtils = MediaPlayerUtils()
-    private var songs: MutableList<Song> = mutableListOf()
-    private var currentSongPosition = 0
+
     private val playIntent by lazy {
         PendingIntent.getService(
                 applicationContext,
@@ -37,6 +39,7 @@ class MusicService : Service(), MyMediaPlayerListener {
                 Intent(ACTION_PLAY),
                 0)
     }
+
     private val stopIntent by lazy {
         PendingIntent.getService(
                 applicationContext,
@@ -45,24 +48,29 @@ class MusicService : Service(), MyMediaPlayerListener {
                 0)
     }
 
-    private val player by lazy {
-        mediaUtils.initMediaPlayer(applicationContext, this)
-    }
+    private val player by lazy { mediaUtils.initMediaPlayer(applicationContext, this) }
+    private val headPhonesReceiver = HeadPhonesUnpluggedReceiver(this)
+
+    private var songs: MutableList<Song> = mutableListOf()
+    private var currentSongPosition = 0
 
     inner class MusicServiceBinder : Binder() {
         fun getService(): MusicService = this@MusicService
     }
 
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        stopSelf()
-        super.onTaskRemoved(rootIntent)
+    override fun stopMusic() {
+        player.stop()
+    }
+
+    fun playMusic() {
+        prepareMediaPlayer()
+        updateNotification()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
-        Log.v("Log", "on create")
-        retrieveDeviceSongList()
+        Log.v(LOG_TAG_SERVICE, "onCreate")
         startForeground(
                 NOTIFICATION_ID,
                 MyNotification.createMusicNotification(
@@ -73,15 +81,22 @@ class MusicService : Service(), MyMediaPlayerListener {
                         stopIntent
                 )
         )
+        retrieveDeviceSongList()
+        registerHeadphonesUnpluggedReceiver()
         super.onCreate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.v("Log", "on start command")
+        Log.v(LOG_TAG_SERVICE, "onStartCommand")
         handleIntentAction(intent?.action)
         return super.onStartCommand(intent, flags, startId)
     }
 
+    private fun registerHeadphonesUnpluggedReceiver() {
+        val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        intentFilter.addAction(AudioManager.ACTION_HEADSET_PLUG)
+        registerReceiver(headPhonesReceiver, intentFilter)
+    }
 
     private fun retrieveDeviceSongList() {
         songs = mutableListOf()
@@ -109,15 +124,6 @@ class MusicService : Service(), MyMediaPlayerListener {
         }
         musicCursor?.close()
         Collections.sort<Song>(songs) { lhs, rhs -> lhs.title.compareTo(rhs.title) }
-    }
-
-    fun stopMusic() {
-        player.stop()
-    }
-
-    fun playMusic() {
-        prepareMediaPlayer()
-        updateNotification()
     }
 
     private fun prepareMediaPlayer() {
@@ -166,6 +172,11 @@ class MusicService : Service(), MyMediaPlayerListener {
     override fun onError(mediaPlayer: MediaPlayer, what: Int, extra: Int) = false
 
     override fun onPrepared(mediaPlayer: MediaPlayer) = player.start()
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
         player.release()
