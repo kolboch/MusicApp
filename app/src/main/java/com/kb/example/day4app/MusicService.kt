@@ -53,6 +53,11 @@ class MusicService : Service(), MyMediaPlayerListener {
         fun getService(): MusicService = this@MusicService
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
@@ -164,6 +169,7 @@ class MusicService : Service(), MyMediaPlayerListener {
 
     override fun onDestroy() {
         player.release()
+        stopForeground(true)
         super.onDestroy()
     }
 }
