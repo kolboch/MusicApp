@@ -1,99 +1,49 @@
 package com.kb.example.day4app
 
-import android.content.ContentUris
-import android.media.AudioManager
-import android.media.MediaPlayer
-import android.net.Uri
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
-import android.os.PowerManager
-import android.provider.BaseColumns._ID
-import android.provider.MediaStore
-import android.provider.MediaStore.Audio.AudioColumns.*
-import android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-import android.provider.MediaStore.MediaColumns.TITLE
+import android.os.IBinder
 import android.support.v7.app.AppCompatActivity
+import android.util.Log
 import kotlinx.android.synthetic.main.activity_main.*
-import java.io.IOException
-import java.util.*
 
-class MainActivity : AppCompatActivity(), MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, MediaPlayer.OnCompletionListener {
+class MainActivity : AppCompatActivity() {
 
-    private val player by lazy {
-        MediaPlayer().apply {
-            setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
-            setAudioStreamType(AudioManager.STREAM_MUSIC)
-            setOnPreparedListener(this@MainActivity)
-            setOnErrorListener(this@MainActivity)
-            setOnCompletionListener(this@MainActivity)
-        }
-    }
-
-    private var songs: MutableList<Song> = mutableListOf()
-    private var currentSongPosition = 0
+    private var service: MusicService? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        retrieveDeviceSongList()
         onListenersSetup()
+        bindToMusicService()
+    }
+
+    private fun bindToMusicService() {
+        val intent = Intent(this, MusicService::class.java)
+        val connection: ServiceConnection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                Log.v("LOG", "service connected")
+                service = (binder as MusicService.MusicServiceBinder).getService()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                Log.v("LOG", "on service disconnected")
+            }
+        }
+        bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
     private fun onListenersSetup() {
         buttonPlay.setOnClickListener {
-            prepareMediaPlayer()
+            service?.playMusic()
         }
 
         buttonStop.setOnClickListener {
-            player.stop()
+            service?.stopMusic()
         }
-    }
-
-    fun prepareMediaPlayer() {
-        player.reset()
-        val currentlyPlayedSong = songs[currentSongPosition]
-        val currentSongId = currentlyPlayedSong.id
-        val trackUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, currentSongId)
-
-        try {
-            player.setDataSource(applicationContext, trackUri)
-        } catch (ex: IOException) {
-            ex.printStackTrace()
-        }
-        player.prepareAsync()
-    }
-
-    override fun onCompletion(mediaPlayer: MediaPlayer) = Unit
-
-    override fun onError(mediaPlayer: MediaPlayer, what: Int, extra: Int) = false
-
-    override fun onPrepared(mediaPlayer: MediaPlayer) = player.start()
-
-    private fun retrieveDeviceSongList() {
-        songs = mutableListOf()
-        val musicResolver = contentResolver
-        val musicCursor = musicResolver.query(EXTERNAL_CONTENT_URI, null, null, null, null)
-
-        if (musicCursor != null && musicCursor.moveToFirst()) {
-            val titleColumn = musicCursor.getColumnIndex(TITLE)
-            val idColumn = musicCursor.getColumnIndex(_ID)
-            val artistColumn = musicCursor.getColumnIndex(ARTIST)
-            val albumCoverColumn = musicCursor.getColumnIndex(ALBUM_ID)
-            val albumNameColumn = musicCursor.getColumnIndex(ALBUM)
-            val durationColumn = musicCursor.getColumnIndex(DURATION)
-            do {
-                val thisId = musicCursor.getLong(idColumn)
-                val songTitle = musicCursor.getString(titleColumn)
-                val songArtist = musicCursor.getString(artistColumn)
-                val songAlbum = musicCursor.getString(albumNameColumn)
-                val albumCoverId = musicCursor.getLong(albumCoverColumn)
-                val albumCoverUriPath = Uri.parse("content://media/external/audio/albumart")
-                val albumArtUri = ContentUris.withAppendedId(albumCoverUriPath, albumCoverId)
-                val songDuration = musicCursor.getLong(durationColumn)
-                songs.add(Song(thisId, songTitle, songArtist, songAlbum, albumArtUri, songDuration.toInt()))
-            } while (musicCursor.moveToNext())
-        }
-        musicCursor?.close()
-        Collections.sort<Song>(songs) { lhs, rhs -> lhs.title.compareTo(rhs.title) }
     }
 }
 
