@@ -181,6 +181,7 @@ class MusicService : Service(), MyMediaPlayerListener, MusicPlayer {
     override fun onDestroy() {
         player.release()
         stopForeground(true)
+        unregisterReceiver(headPhonesReceiver)
         super.onDestroy()
     }
 }
