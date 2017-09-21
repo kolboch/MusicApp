@@ -16,6 +16,9 @@ import java.util.*
 /**
  * Created by Karol on 2017-09-21.
  */
+
+const val NOTIFICATION_ID = 77
+
 class MusicService : Service(), MyMediaPlayerListener {
 
     private val binder = MusicServiceBinder()
@@ -28,7 +31,6 @@ class MusicService : Service(), MyMediaPlayerListener {
         mediaUtils.initMediaPlayer(applicationContext, this)
     }
 
-
     inner class MusicServiceBinder : Binder() {
         fun getService(): MusicService = this@MusicService
     }
@@ -37,8 +39,16 @@ class MusicService : Service(), MyMediaPlayerListener {
 
     override fun onCreate() {
         Log.v("Log", "on create")
-        super.onCreate()
         retrieveDeviceSongList()
+        startForeground(
+                NOTIFICATION_ID,
+                MyNotification.createMusicNotification(
+                        this,
+                        getString(R.string.app_name),
+                        getString(R.string.default_notification_text)
+                )
+        )
+        super.onCreate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,6 +91,7 @@ class MusicService : Service(), MyMediaPlayerListener {
 
     fun playMusic() {
         prepareMediaPlayer()
+        updateNotification()
     }
 
     private fun prepareMediaPlayer() {
@@ -98,9 +109,32 @@ class MusicService : Service(), MyMediaPlayerListener {
         player.prepareAsync()
     }
 
+    private fun updateNotification() {
+        val title = songs[currentSongPosition].title
+        val artist = songs[currentSongPosition].artist
+        startForeground(
+                NOTIFICATION_ID,
+                MyNotification.createMusicNotification(
+                        this,
+                        getString(R.string.app_name),
+                        composeArtistWithTitle(title, artist)
+                )
+        )
+
+    }
+
+    private fun composeArtistWithTitle(title: String, artist: String): String {
+        return "\"$title\" $artist"
+    }
+
     override fun onCompletion(mediaPlayer: MediaPlayer) = Unit
 
     override fun onError(mediaPlayer: MediaPlayer, what: Int, extra: Int) = false
 
     override fun onPrepared(mediaPlayer: MediaPlayer) = player.start()
+
+    override fun onDestroy() {
+        player.release()
+        super.onDestroy()
+    }
 }

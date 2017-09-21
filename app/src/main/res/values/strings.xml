@@ -2,4 +2,5 @@
     <string name="app_name">Day4App</string>
     <string name="play">Play</string>
     <string name="stop">Stop</string>
+    <string name="default_notification_text">Play some music!</string>
 </resources>
