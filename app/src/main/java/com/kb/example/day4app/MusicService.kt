@@ -1,5 +1,6 @@
 package com.kb.example.day4app
 
+import android.app.PendingIntent
 import android.app.Service
 import android.content.ContentUris
 import android.content.Intent
@@ -18,14 +19,31 @@ import java.util.*
  */
 
 const val NOTIFICATION_ID = 77
+const val PENDING_INTENT_PLAY = 88
+const val PENDING_INTENT_STOP = 99
+const val ACTION_PLAY = "com.kb.example.day4app.play_music"
+const val ACTION_STOP = "com.kb.example.day4app.stop_music"
 
 class MusicService : Service(), MyMediaPlayerListener {
 
     private val binder = MusicServiceBinder()
-
     private val mediaUtils = MediaPlayerUtils()
     private var songs: MutableList<Song> = mutableListOf()
     private var currentSongPosition = 0
+    private val playIntent by lazy {
+        PendingIntent.getService(
+                applicationContext,
+                PENDING_INTENT_PLAY,
+                Intent(ACTION_PLAY),
+                0)
+    }
+    private val stopIntent by lazy {
+        PendingIntent.getService(
+                applicationContext,
+                PENDING_INTENT_STOP,
+                Intent(ACTION_STOP),
+                0)
+    }
 
     private val player by lazy {
         mediaUtils.initMediaPlayer(applicationContext, this)
@@ -45,7 +63,9 @@ class MusicService : Service(), MyMediaPlayerListener {
                 MyNotification.createMusicNotification(
                         this,
                         getString(R.string.app_name),
-                        getString(R.string.default_notification_text)
+                        getString(R.string.default_notification_text),
+                        playIntent,
+                        stopIntent
                 )
         )
         super.onCreate()
@@ -53,6 +73,7 @@ class MusicService : Service(), MyMediaPlayerListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.v("Log", "on start command")
+        handleIntentAction(intent?.action)
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -117,10 +138,18 @@ class MusicService : Service(), MyMediaPlayerListener {
                 MyNotification.createMusicNotification(
                         this,
                         getString(R.string.app_name),
-                        composeArtistWithTitle(title, artist)
+                        composeArtistWithTitle(title, artist),
+                        playIntent,
+                        stopIntent
                 )
         )
+    }
 
+    private fun handleIntentAction(action: String?) {
+        when (action) {
+            ACTION_PLAY -> playMusic()
+            ACTION_STOP -> stopMusic()
+        }
     }
 
     private fun composeArtistWithTitle(title: String, artist: String): String {

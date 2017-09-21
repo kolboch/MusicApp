@@ -22,7 +22,10 @@
         </activity>
 
         <service android:name=".MusicService">
-
+            <intent-filter>
+                <action android:name="com.kb.example.day4app.stop_music"/>
+                <action android:name="com.kb.example.day4app.play_music"/>
+            </intent-filter>
         </service>
     </application>
 
